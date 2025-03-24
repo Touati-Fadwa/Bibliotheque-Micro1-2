@@ -1,0 +1,77 @@
+# Nom du pipeline
+name: CI/CD Pipeline
+
+# Déclencheur : À chaque push ou pull request sur la branche main
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+# Définition des jobs
+jobs:
+  build:
+    runs-on: ubuntu-latest  # Exécuter sur Ubuntu
+
+    steps:
+      # Étape 1 : Cloner le code
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      # Étape 2 : Installer Node.js et les dépendances
+      - name: Install Dependencies
+        run: |
+          npm install
+
+    # Étape 3: Construire l’image Docker
+      - name: Build Docker Image
+        run: |
+          docker build -t touatifadwa/biblio-gatekeeper:latest .
+
+      # Étape 4: Pousser l’image sur Docker Hub
+      - name: Push Docker Image
+        run: |
+          docker login -u touatifadwa -p foufou53550880
+          docker push touatifadwa/biblio-gatekeeper:latest
+
+      # Étape 5: Exécuter les tests unitaires (si disponibles)
+      - name: Run Tests
+        run: |
+          npm test
+
+      # Étape 6: Vérifier la qualité du code avec ESLint
+      - name: Lint Code
+        run: |
+          npm run lint
+
+      # Étape 7 : Déployer sur Kubernetes
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
+
+      # Étape 8 : Vérification des pods
+      - name: Check Pod Status
+        run: |
+          kubectl get pods
+
+      # Étape 9 : Monitoring avec Prometheus & Grafana
+      - name: Monitor with Prometheus and Grafana
+        run: |
+          kubectl port-forward service/prometheus 9090:9090 &
+          kubectl port-forward service/grafana 3000:3000 &
+
+      # Étape 10 : Envoyer une notification avec Gotify
+      - name: Send Gotify Notification
+        run: |
+          curl -X POST "https://gotify.example.com/message?token=${{ secrets.GOTIFY_TOKEN }}" \
+          -d "message=Deployment completed successfully!" \
+          -d "title=CI/CD Pipeline"
+
+      # Étape 11 : Rollback en cas d'échec
+      - name: Rollback on Failure
+        if: failure()
+        run: |
+          kubectl rollout undo deployment/biblio-gatekeeper
